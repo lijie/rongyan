@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>熔岩守城</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;background:#07060d;color:#f3e9e0;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;overflow:hidden}
+body{display:flex;flex-direction:column;height:100dvh}
+#hud{flex:0 0 auto;display:flex;gap:14px;align-items:center;justify-content:center;padding:8px 12px;background:linear-gradient(#140c18,#0b0810);border-bottom:1px solid #2a1a24;font-size:15px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;background:#1d1320;border:1px solid #3a2430;border-radius:20px;padding:4px 12px;white-space:nowrap}
+.chip b{font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right;color:#ffd27a}
+.meter{width:90px;height:9px;background:#2b1e28;border-radius:5px;overflow:hidden}
+.meter i{display:block;height:100%;width:50%;border-radius:5px}
+#mStone i{background:linear-gradient(90deg,#8d95a8,#c9d0de)}
+#mRain i{background:linear-gradient(90deg,#3b7fe0,#8fd0ff)}
+#mRain.cd i{background:#4b5266}
+#stage{flex:1 1 auto;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+canvas{display:block;touch-action:none;image-rendering:pixelated;border-radius:6px;box-shadow:0 0 40px #ff4a1a22}
+#bar{flex:0 0 auto;display:flex;gap:10px;justify-content:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(#0b0810,#140c18);border-top:1px solid #2a1a24}
+.tool{position:relative;overflow:hidden;min-width:96px;padding:9px 14px;border-radius:12px;border:2px solid #3a2430;background:#1d1320;color:#f3e9e0;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+.tool small{opacity:.55;font-weight:400;margin-left:4px;font-size:12px}
+.tool.on{border-color:#ff9a3c;background:#2e1a1c;box-shadow:0 0 14px #ff7a2a55}
+.tool .cdf{position:absolute;left:0;bottom:0;height:4px;background:#8fd0ff;width:100%}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#07060dcc;backdrop-filter:blur(3px);z-index:5}
+.ov.hide{display:none}
+.card{background:linear-gradient(#22141e,#150d15);border:1px solid #4a2a30;border-radius:18px;padding:22px 26px;max-width:min(440px,92vw);text-align:center;box-shadow:0 10px 60px #ff4a1a33}
+.card h1{font-size:34px;letter-spacing:4px;background:linear-gradient(#ffe08a,#ff6a2a);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:4px}
+.card .sub{opacity:.7;font-size:14px;margin-bottom:14px}
+.card ul{list-style:none;text-align:left;font-size:14.5px;line-height:1.55;margin:0 0 16px}
+.card li{margin:6px 0;padding-left:4px}
+.card li b{color:#ffd27a}
+.btn{font-family:inherit;font-size:18px;font-weight:700;padding:11px 34px;border-radius:30px;border:0;cursor:pointer;color:#2a0f08;background:linear-gradient(#ffd27a,#ff7a2a);box-shadow:0 4px 20px #ff6a2a66}
+.stars{font-size:46px;letter-spacing:6px;margin:6px 0 4px}
+.stars span{color:#3a2a30}.stars span.on{color:#ffd23a;text-shadow:0 0 16px #ffb02a}
+#rText{font-size:16px;margin:6px 0 16px;line-height:1.6}
+.best{opacity:.6;font-size:13px;margin-top:10px}
+@media (max-width:560px){#hud{gap:6px;font-size:13px;padding:6px}.chip{padding:3px 8px}.meter{width:54px}.tool{min-width:0;flex:1;padding:9px 6px;font-size:15px}.tool small{display:none}.card h1{font-size:28px}}
+</style></head><body>
+<div id="hud">
+ <div class="chip">⏱ <b id="hTime">90</b>秒</div>
+ <div class="chip">🏠 <b id="hHouse">6/6</b></div>
+ <div class="chip">岩料 <div class="meter" id="mStone"><i></i></div></div>
+ <div class="chip">雨云 <div class="meter" id="mRain"><i></i></div></div>
+</div>
+<div id="stage"><canvas id="cv"></canvas>
+ <div class="ov" id="start"><div class="card">
+  <h1>熔岩守城</h1><div class="sub">火山要醒了，坚持 90 秒，保住山脚的小城</div>
+  <ul>
+   <li>🧱 <b>1 · 岩墙</b>：拖动画墙挡住熔岩，消耗岩料，岩料会慢慢回满</li>
+   <li>⛏ <b>2 · 挖沟</b>：挖掉泥土，把熔岩引进坑里或引出地图</li>
+   <li>🌧 <b>3 · 降雨</b>：熔岩遇水冷却成黑曜石，变成新的墙；雨云用完要冷却，积水也会占地方</li>
+   <li>🔥 熔岩一波比一波猛，碰到房子就会烧掉。剩下的房子越多，星越多</li>
+  </ul>
+  <button class="btn" id="bStart">开始守城</button>
+  <div class="best" id="bestA"></div>
+ </div></div>
+ <div class="ov hide" id="result"><div class="card">
+  <h1 id="rTitle">守住了！</h1>
+  <div class="stars" id="rStars"><span>★</span><span>★</span><span>★</span></div>
+  <div id="rText"></div>
+  <button class="btn" id="bAgain">再来一局</button>
+  <div class="best" id="bestB"></div>
+ </div></div>
+</div>
+<div id="bar">
+ <button class="tool on" data-t="0">🧱 岩墙<small>1</small></button>
+ <button class="tool" data-t="1">⛏ 挖沟<small>2</small></button>
+ <button class="tool" data-t="2" id="tRain">🌧 降雨<small>3</small><span class="cdf" id="rainF"></span></button>
+</div>
+<script>
+(()=>{
+const W=240,H=150,N=W*H,ROUND=90;
+const AIR=0,DIRT=1,STONE=2,LAVA=3,WATER=4,OBS=5,HOUSE=6,FIRE=7,ROCK=8;
+const g=new Uint8Array(N),sh=new Uint8Array(N),life=new Uint16Array(N),hid=new Int8Array(N),stamp=new Uint8Array(N);
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const gc=document.createElement('canvas');gc.width=W;gc.height=H;const gx=gc.getContext('2d');
+const img=gx.createImageData(W,H),px=new Uint32Array(img.data.buffer);
+const lc=document.createElement('canvas');lc.width=W;lc.height=H;const lx=lc.getContext('2d');
+const limg=lx.createImageData(W,H),lpx=new Uint32Array(limg.data.buffer);
+const bc=document.createElement('canvas');bc.width=W/2;bc.height=H/2;const bx=bc.getContext('2d');
+const sky=document.createElement('canvas');
+const $=id=>document.getElementById(id);
+let tick=0,tk=1,state='menu',t=0,stone=100,rain=100,rainLock=false,rainIdle=0,tool=0,houses=[],parts=[],stars=[],crater={x:40,y:40},wave=-1,banner=null,shake=0;
+let ptr={down:false,x:-1,y:-1,lx:-1,ly:-1,in:false},speed=1,endT=0;
+const R=Math.random;
+const rgb=(r,g_,b)=>(255<<24)|(b<<16)|(g_<<8)|r;
+// ---------- world gen ----------
+function gen(){
+ g.fill(0);life.fill(0);hid.fill(-1);parts=[];
+ for(let i=0;i<N;i++)sh[i]=R()*256|0;
+ const pk=36+R()*10|0;crater={x:pk};
+ const ph=[R()*6,R()*6,R()*6],gy=new Array(W);
+ const valley=112+R()*22|0;
+ for(let x=0;x<W;x++){
+  let y;
+  if(x<pk) y=36+(pk-x)*0.75;
+  else if(x<168){const s=(x-pk)/(168-pk);y=39+s*78-Math.sin(s*Math.PI)*8;}
+  else y=117+(x-168)*0.02;
+  const amp=x<165?2.6:0.7;
+  y+=amp*(Math.sin(x*.11+ph[0])*.6+Math.sin(x*.27+ph[1])*.3+Math.sin(x*.05+ph[2])*.5);
+  const dx=x-pk; if(Math.abs(dx)<=6) y+=7*(1-(dx/6)**2);
+  if(dx<-6&&dx>-12) y-=2*(1-Math.abs(dx+9)/3);
+  const vd=x-valley; if(Math.abs(vd)<9) y+=6*(1-(vd/9)**2);
+  gy[x]=Math.round(y);
+ }
+ crater.y=gy[pk];
+ // houses
+ const n=6;houses=[];let hx=172+R()*4|0;
+ for(let k=0;k<n;k++){
+  const w=7,h=7;const base=Math.max(...gy.slice(hx,hx+w));
+  for(let x=hx-1;x<hx+w+1&&x<W;x++)gy[x]=base;
+  houses.push({x:hx,y:base-h,w,h,lost:false,id:k});
+  hx+=w+3+(R()*3|0);if(hx+w>=W-1)break;
+ }
+ for(let x=0;x<W;x++)for(let y=gy[x];y<H;y++){const i=y*W+x;g[i]=y>=H-3?ROCK:DIRT;}
+ for(const hs of houses){
+  for(let yy=0;yy<hs.h;yy++)for(let xx=0;xx<hs.w;xx++){
+   if(yy===0&&(xx<2||xx>4))continue;if(yy===1&&(xx<1||xx>5))continue;
+   const i=(hs.y+yy)*W+hs.x+xx;g[i]=HOUSE;hid[i]=hs.id;
+   let part=0;if(yy<3)part=2;else if((xx===1||xx===5)&&yy===4)part=1;else if(xx===3&&yy>=5)part=3;
+   sh[i]=part;
+  }
+ }
+}
+function makeSky(){const ph=[R()*6];
+ const cw=cv.width||960,ch=cv.height||600;sky.width=cw;sky.height=ch;const s=sky.getContext('2d');
+ const gr=s.createLinearGradient(0,0,0,ch);gr.addColorStop(0,'#05040b');gr.addColorStop(.6,'#160b1c');gr.addColorStop(1,'#2a0f14');
+ s.fillStyle=gr;s.fillRect(0,0,cw,ch);
+ stars=[];for(let k=0;k<120;k++)stars.push([R()*cw,R()*ch*.7,R()*1.4+.3,R()*6]);
+ s.fillStyle='#f6eed0';s.beginPath();s.arc(cw*.8,ch*.16,ch*.05,0,7);s.fill();
+ s.fillStyle='#160b1c';s.beginPath();s.arc(cw*.8+ch*.02,ch*.15,ch*.045,0,7);s.fill();
+ s.fillStyle='#120a17';s.beginPath();s.moveTo(0,ch);
+ for(let x=0;x<=cw;x+=cw/40)s.lineTo(x,ch*.55+Math.sin(x/cw*9+ph[0])*ch*.05+Math.sin(x/cw*23)*ch*.02);
+ s.lineTo(cw,ch);s.fill();
+}
+// ---------- sim ----------
+function mv(i,j){const a=g[j],b=sh[j],l=life[j];g[j]=g[i];sh[j]=sh[i];life[j]=0;g[i]=a;sh[i]=b;life[i]=l;stamp[j]=tk;}
+function ignite(i){const h=houses[hid[i]];g[i]=FIRE;life[i]=70+R()*90|0;if(h&&!h.lost){h.lost=true;shake=8;}}
+function part(x,y,type,vx,vy,l){if(parts.length<500)parts.push({x,y,vx,vy,l,m:l,type});}
+function lava(x,y,i){
+ const nb=[i-W,i+W,i-1,i+1];
+ for(let k=0;k<4;k++){const j=nb[k];if(j<0||j>=N)continue;if(k>1&&((k===2&&x===0)||(k===3&&x===W-1)))continue;
+  const q=g[j];
+  if(q===WATER){g[i]=OBS;g[j]=AIR;part(j%W,j/W|0,2,(R()-.5)*.3,-.4-R()*.4,40);return;}
+  if(q===HOUSE)ignite(j);
+  else if(q===STONE&&R()<.0005){g[j]=LAVA;stamp[j]=tk;}
+ }
+ if(y>0&&g[i-W]===AIR&&R()<.004)part(x,y-1,0,(R()-.5)*.4,-.3-R()*.5,50+R()*40);
+ if(R()>.5){if(++life[i]>900&&R()<.003)g[i]=OBS;return;}
+ if(y<H-1&&g[i+W]===AIR){mv(i,i+W);return;}
+ const d=R()<.5?1:-1;
+ for(const e of [d,-d]){const nx=x+e;
+  if(nx<0||nx>=W){g[i]=AIR;return;}
+  if(y<H-1&&g[i+W+e]===AIR&&g[i+e]===AIR){mv(i,i+W+e);return;}
+ }
+ for(const e of [d,-d]){const nx=x+e;if(g[i+e]===AIR&&R()<.6){mv(i,i+e);return;}}
+ if(++life[i]>900&&R()<.003)g[i]=OBS;
+}
+function water(x,y,i){
+ if(R()<.0004){g[i]=AIR;return;}
+ if(y>=H-1)return;
+ if(g[i+W]===AIR){mv(i,i+W);return;}
+ const d=R()<.5?1:-1;
+ for(const e of [d,-d]){const nx=x+e;if(nx<0||nx>=W){g[i]=AIR;return;}
+  if(g[i+W+e]===AIR&&g[i+e]===AIR){mv(i,i+W+e);return;}}
+ for(const e of [d,-d]){let j=i;for(let s=1;s<=3;s++){const nx=x+e*s;if(nx<0||nx>=W){g[i]=AIR;return;}if(g[i+e*s]!==AIR)break;j=i+e*s;}
+  if(j!==i){mv(i,j);return;}}
+}
+function fire(x,y,i){
+ if(R()<.12)part(x,y-1,1,(R()-.5)*.3,-.25-R()*.3,80+R()*60);
+ if(R()<.05)part(x,y,0,(R()-.5)*.6,-.6-R()*.5,40);
+ const nb=[i-W,i+W,i-1,i+1];for(const j of nb)if(j>=0&&j<N&&g[j]===HOUSE&&R()<.06)ignite(j);
+ if(--life[i]<=0){g[i]=AIR;}
+}
+function spawnLava(n){
+ for(let k=0;k<n;k++){const x=crater.x-4+(R()*9|0);let y=crater.y+6;while(y>2&&g[y*W+x]!==AIR)y--;
+  const i=y*W+x;if(g[i]===AIR){g[i]=LAVA;life[i]=0;stamp[i]=tk;}}
+ if(R()<.3)part(crater.x+(R()-.5)*8,crater.y-2,0,(R()-.5)*1.4,-1.2-R()*1.4,60);
+}
+// waves: k=0.. start 2+k*8.5s
+function waveAt(tt){const k=Math.floor((tt-2)/8.5);if(k<0)return null;const s=2+k*8.5,dur=2.6+k*.45;return tt-s<dur?{k,rate:CFG.base+CFG.grow*k}:{k,rate:0};}
+const CFG={base:.8,grow:.42,stoneMax:100,stoneRegen:2.6,stoneCost:1,rainUse:.75,rainRegen:.26};
+function applyTool(cx,cy){
+ if(tool===0){const r=2.2;for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++){if(x*x+y*y>r*r)continue;const X=cx+x,Y=cy+y;if(X<0||X>=W||Y<0||Y>=H)continue;const i=Y*W+X;
+   if((g[i]===AIR||g[i]===WATER)&&stone>=CFG.stoneCost){g[i]=STONE;stone-=CFG.stoneCost;}}}
+ else if(tool===1){const r=3.2;for(let y=-4;y<=4;y++)for(let x=-4;x<=4;x++){if(x*x+y*y>r*r)continue;const X=cx+x,Y=cy+y;if(X<0||X>=W||Y<0||Y>=H)continue;const i=Y*W+X;
+   if(g[i]===DIRT||g[i]===STONE||g[i]===OBS){g[i]=AIR;if(R()<.08)part(X,Y,3,(R()-.5)*.8,-.6,25);}}}
+}
+function rainTick(){
+ if(tool===2&&ptr.down&&ptr.in&&!rainLock&&rain>0&&state==='play'){
+  rain-=CFG.rainUse;rainIdle=0;if(rain<=0){rain=0;rainLock=true;}
+  for(let k=0;k<5;k++){const X=ptr.x+(R()*15|0)-7,Y=ptr.y-(R()*5|0)-1;if(X<0||X>=W||Y<0)continue;const i=Y*W+X;if(g[i]===AIR){g[i]=WATER;stamp[i]=tk;}}
+  if(R()<.6)part(ptr.x+(R()-.5)*16,ptr.y-10-R()*6,4,0,1.4,8);
+ }else{rainIdle++;if(rainIdle>50||rainLock){rain=Math.min(100,rain+CFG.rainRegen);if(rain>=100)rainLock=false;}}
+}
+function step(){
+ tick++;tk=(tick%255)+1;
+ if(state==='play'){
+  t+=1/60;stone=Math.min(CFG.stoneMax,stone+CFG.stoneRegen/60);
+  const w=waveAt(t);if(w){if(w.k!==wave){wave=w.k;banner={txt:`第 ${w.k+1} 波喷发！`,l:90};shake=6;}if(w.rate>0){let n=w.rate;let c=Math.floor(n)+(R()<n%1?1:0);spawnLava(c);}}
+  if(ptr.down&&ptr.in&&tool!==2){// interpolate
+   const dx=ptr.x-ptr.lx,dy=ptr.y-ptr.ly,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/1.5));
+   for(let s=1;s<=steps;s++)applyTool(Math.round(ptr.lx+dx*s/steps),Math.round(ptr.ly+dy*s/steps));
+   ptr.lx=ptr.x;ptr.ly=ptr.y;}
+  rainTick();
+ }
+ for(let y=H-1;y>=0;y--){const lr=(tick+y)&1,row=y*W;
+  for(let k=0;k<W;k++){const x=lr?k:W-1-k,i=row+x,c=g[i];
+   if(c<3||c===OBS||c===HOUSE||c===ROCK||stamp[i]===tk)continue;
+   if(c===LAVA)lava(x,y,i);else if(c===WATER)water(x,y,i);else if(c===FIRE)fire(x,y,i);}}
+ for(let k=parts.length-1;k>=0;k--){const p=parts[k];p.x+=p.vx;p.y+=p.vy;
+  if(p.type===0){p.vy+=.012;}else if(p.type===1){p.vx+=(R()-.5)*.04;p.vy*=.995;}else if(p.type===3)p.vy+=.05;
+  if(--p.l<=0)parts.splice(k,1);}
+ if(state==='play'){
+  const alive=houses.filter(h=>!h.lost).length;
+  if(t>=ROUND||(alive===0&&!endT)){if(!endT)endT=tick;}
+  if(endT&&tick-endT>(alive===0?70:20))finish();
+ }
+}
+// ---------- render ----------
+function render(now){
+ const tt=now/1000;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,c=g[i],s=sh[i];let col=0,gl=0;
+  switch(c){
+   case DIRT:{const top=y>0&&g[i-W]===AIR;const v=s&15;col=top?rgb(84+v,58+v,52):rgb(52+v,36+(v>>1),40+(v>>1));break;}
+   case ROCK:col=rgb(30,24,32);break;
+   case STONE:{const m=(y%3===0)||((x+((y/3|0)&1)*2)%4===0);const v=s&7;col=m?rgb(78,80,92):rgb(132+v,136+v,150+v);break;}
+   case LAVA:{const top=y>0&&(g[i-W]===AIR||g[i-W]===WATER);const f=Math.sin(tt*3+s*.05+x*.15)*.5+.5;
+     col=top?rgb(255,200+f*40|0,90+f*50|0):rgb(200+(s&31),30+(f*60|0)+(s&15),12);gl=top?rgb(255,150,40):rgb(160,50,10);break;}
+   case WATER:{const top=y>0&&g[i-W]===AIR;col=top?rgb(130,190,255):rgb(40,96+(s&15),200);break;}
+   case OBS:{const sv=((x*3+y*2+(s>>5))%9===0)||(((x+y*2)+(tt*6|0))%37===0);col=sv?rgb(120,80,190):rgb(28+(s&7),18+(s&7),44+(s&15));break;}
+   case HOUSE:col=s===2?rgb(150,52,46):s===1?rgb(255,214,110):s===3?rgb(70,44,34):rgb(112,80,62);if(s===1)gl=rgb(150,110,30);break;
+   case FIRE:{const f=R();col=rgb(255,100+f*120|0,30);gl=rgb(255,140,40);break;}
+  }
+  px[i]=col;lpx[i]=gl;}
+ gx.putImageData(img,0,0);lx.putImageData(limg,0,0);
+ bx.clearRect(0,0,bc.width,bc.height);bx.filter='blur(2px)';bx.drawImage(lc,0,0,bc.width,bc.height);bx.filter='none';
+ const cw=cv.width,ch=cv.height,s=cw/W;
+ ctx.save();
+ if(shake>0){ctx.translate((R()-.5)*shake*s*.3,(R()-.5)*shake*s*.3);shake*=.9;if(shake<.3)shake=0;}
+ ctx.drawImage(sky,0,0,cw,ch);
+ for(const st of stars){ctx.globalAlpha=.35+.35*Math.sin(tt*1.5+st[3]);ctx.fillStyle='#fff';ctx.fillRect(st[0],st[1],st[2]*s*.4,st[2]*s*.4);}
+ ctx.globalAlpha=1;ctx.imageSmoothingEnabled=false;ctx.drawImage(gc,0,0,cw,ch);
+ ctx.imageSmoothingEnabled=true;ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.5;ctx.drawImage(bc,-s,-s,cw+2*s,ch+2*s);
+ ctx.globalAlpha=1;
+ for(const p of parts){const a=p.l/p.m;
+  if(p.type===0){ctx.fillStyle=`rgba(255,${150+a*80|0},60,${a})`;ctx.fillRect(p.x*s,p.y*s,s*.7,s*.7);}
+ }
+ ctx.globalCompositeOperation='source-over';
+ for(const p of parts){const a=p.l/p.m;
+  if(p.type===1){ctx.fillStyle=`rgba(70,60,70,${a*.55})`;const r=s*(2.6-a*1.6);ctx.fillRect(p.x*s-r/2,p.y*s-r/2,r,r);}
+  else if(p.type===2){ctx.fillStyle=`rgba(220,225,235,${a*.6})`;ctx.fillRect(p.x*s,p.y*s,s*1.2,s*1.2);}
+  else if(p.type===3){ctx.fillStyle=`rgba(110,80,70,${a})`;ctx.fillRect(p.x*s,p.y*s,s*.6,s*.6);}
+  else if(p.type===4){ctx.fillStyle='rgba(150,200,255,.7)';ctx.fillRect(p.x*s,p.y*s,s*.25,s*1.6);}
+ }
+ if(ptr.in&&state==='play'){ctx.strokeStyle=['#d8dce8','#c99a70','#8fd0ff'][tool];ctx.globalAlpha=.7;ctx.lineWidth=Math.max(1,s*.25);ctx.beginPath();ctx.arc((ptr.x+.5)*s,(ptr.y+.5)*s,[2.4,3.4,7.5][tool]*s,0,7);ctx.stroke();ctx.globalAlpha=1;}
+ if(banner&&state==='play'){ctx.globalAlpha=Math.min(1,banner.l/30);ctx.font=`bold ${Math.round(s*6)}px sans-serif`;ctx.textAlign='center';ctx.fillStyle='#ffcf7a';ctx.shadowColor='#ff5a1a';ctx.shadowBlur=s*4;ctx.fillText(banner.txt,cw*.5,ch*.13);ctx.shadowBlur=0;ctx.globalAlpha=1;if(--banner.l<=0)banner=null;}
+ ctx.restore();
+ hud();
+}
+let hudC='';
+function hud(){
+ const alive=houses.filter(h=>!h.lost).length;
+ const key=[Math.ceil(Math.max(0,ROUND-t)),alive,stone|0,rain|0,rainLock].join();if(key===hudC)return;hudC=key;
+ $('hTime').textContent=Math.ceil(Math.max(0,ROUND-t));$('hHouse').textContent=alive+'/'+houses.length;
+ $('mStone').firstChild.style.width=stone/CFG.stoneMax*100+'%';$('mRain').firstChild.style.width=rain+'%';
+ $('mRain').classList.toggle('cd',rainLock);$('rainF').style.width=rain+'%';$('rainF').style.background=rainLock?'#4b5266':'#8fd0ff';
+}
+// ---------- flow ----------
+const best=()=>+(localStorage.getItem('rongyan_best')||0);
+function showBest(){const b=best();const s=b?`最佳纪录：${'★'.repeat(b)}${'☆'.repeat(3-b)}`:'';$('bestA').textContent=s;$('bestB').textContent=s;}
+function start(){gen();t=0;stone=CFG.stoneMax;rain=100;rainLock=false;wave=-1;endT=0;state='play';$('start').classList.add('hide');$('result').classList.add('hide');hudC='';}
+function finish(){
+ state='end';const alive=houses.filter(h=>!h.lost).length,n=houses.length,f=alive/n;
+ const st=f>=.8?3:f>=.5?2:alive>0?1:0;
+ [...$('rStars').children].forEach((e,k)=>e.classList.toggle('on',k<st));
+ $('rTitle').textContent=st===3?'固若金汤！':st===2?'守住了大半':st===1?'险些失守':'小城沦陷';
+ $('rText').innerHTML=alive===0?`熔岩吞没了全部 ${n} 座房子<br>试试先挖坑蓄住熔岩，再用雨冷却`:`坚持了 ${ROUND} 秒，保住 <b style="color:#ffd27a">${alive}/${n}</b> 座房子`;
+ if(st>best())try{localStorage.setItem('rongyan_best',st)}catch(e){}
+ showBest();$('result').classList.remove('hide');G.stars=st;
+}
+// ---------- input ----------
+function setTool(k){tool=k;document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('on',+b.dataset.t===k));}
+document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>setTool(+b.dataset.t)));
+addEventListener('keydown',e=>{if(e.key>='1'&&e.key<='3')setTool(+e.key-1);if((e.key==='Enter'||e.key===' ')&&state!=='play'){e.preventDefault();start();}});
+function gpos(e){const r=cv.getBoundingClientRect();ptr.x=Math.floor((e.clientX-r.left)/r.width*W);ptr.y=Math.floor((e.clientY-r.top)/r.height*H);ptr.in=ptr.x>=0&&ptr.x<W&&ptr.y>=0&&ptr.y<H;}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();gpos(e);ptr.down=true;ptr.lx=ptr.x;ptr.ly=ptr.y;try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+cv.addEventListener('pointermove',e=>{gpos(e);if(!ptr.down){ptr.lx=ptr.x;ptr.ly=ptr.y;}});
+const up=()=>{ptr.down=false;};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse'&&!ptr.down)ptr.in=false;});
+$('bStart').onclick=start;$('bAgain').onclick=start;
+function fit(){const st=$('stage'),aw=st.clientWidth-12,ah=st.clientHeight-12;let w=aw,h=w*H/W;if(h>ah){h=ah;w=h*W/H;}
+ w=Math.max(120,Math.floor(w));h=Math.floor(w*H/W);cv.style.width=w+'px';cv.style.height=h+'px';
+ const dpr=Math.min(2,devicePixelRatio||1);const s=Math.max(1,Math.round(w*dpr/W));cv.width=W*s;cv.height=H*s;}
+addEventListener('resize',()=>{fit();makeSky();});
+// ---------- loop ----------
+let last=performance.now(),acc=0,slow=0;
+function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;acc+=dt*speed;
+ let n=0;const lim=speed>1?speed*3:3;const t0=performance.now();
+ while(acc>=1/60&&n<lim){step();acc-=1/60;n++;}
+ if(n>=lim)acc=0;
+ const cost=(performance.now()-t0)/Math.max(1,n);slow=slow*.95+cost*.05;
+ render(now);requestAnimationFrame(loop);}
+fit();gen();makeSky();showBest();
+// menu preview: a little lava already on the slope
+for(let k=0;k<200;k++){spawnLava(3);step();}
+requestAnimationFrame(loop);
+const G=window.__g={get state(){return state},get t(){return t},get alive(){return houses.filter(h=>!h.lost).length},get houses(){return houses},get stone(){return stone},get rain(){return rain},get rainLock(){return rainLock},
+ set speed(v){speed=v},get speed(){return speed},get slow(){return slow},CFG,setTool,
+ toScreen(x,y){const r=cv.getBoundingClientRect();return[r.left+(x+.5)/W*r.width,r.top+(y+.5)/H*r.height]},
+ ground(x){for(let y=0;y<H;y++){const c=g[y*W+x];if(c===DIRT||c===ROCK||c===HOUSE||c===STONE||c===OBS)return y;}return H},
+ lavaFront(){let m=-1;for(let i=0;i<N;i++)if(g[i]===LAVA&&i%W>m)m=i%W;return m},
+ count(c){let n=0;for(let i=0;i<N;i++)if(g[i]===c)n++;return n},crater:()=>crater};
+})();
+</script></body></html>
